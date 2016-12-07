@@ -1,0 +1,6 @@
+[package]
+name = "groupby"
+version = "0.1.0"
+authors = ["ntdef <me@ntdef.com>"]
+
+[dependencies]
