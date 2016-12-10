@@ -5,6 +5,8 @@ use std::io::BufReader;
 use std::io::BufRead;
 use std::io::Write;
 use std::io::Read;
+use std::result;
+use std::iter::Peekable;
 // use std::error::Error;
 // use std::io::stdout;
 use std::collections::HashMap;
@@ -21,6 +23,11 @@ pub fn nth_field(s : &str, n : usize) -> String {
     s.split(",").nth(n).unwrap().to_owned()
 }
 
+fn flush_buffer(buf : &mut String) {
+    println!("{}", buf);
+    buf.clear();
+}
+
 fn main() {
     let input = env::args().nth(1).unwrap_or(String::from("-"));
     // let dict : HashMap<String, Vec<String>> = HashMap::new();
@@ -33,7 +40,6 @@ fn main() {
 
     // TODO Convert to while loop buffered read.
     // See: https://doc.rust-lang.org/std/io/trait.BufRead.html#method.read_line
-
     // let mut buffer = String::new();
     // while rdr.read_line(&mut buffer).unwrap() > 0 {
     //     // work with buffer
@@ -41,10 +47,41 @@ fn main() {
     //     buffer.clear();
     // }
 
-    let mut prev = "".to_owned();
+    let mut prev = String::new();
     let mut buf = String::new();
     let mut bufout = String::new();
+    let mut itr = rdr.lines();
+    let mut cmd = Command::new("bash")
+        .arg("-c")
+        .arg("wc -l")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
 
+    loop {
+        let el = itr.next();
+        match el {
+            Some(el) => {
+                let line = el.ok().unwrap();
+                let cur = nth_field(&line, keycol);
+                if cur == prev || prev.is_empty() {
+                    buf.push('\n');
+                    buf.push_str(&line);
+                } else {
+                    flush_buffer(&mut buf);
+                }
+                prev = cur
+            },
+            // flush buffer
+            None => {
+                flush_buffer(&mut buf);
+                break
+            },
+        }
+    }
+
+    return;
     for line in rdr.lines() {
         // Rust *really* wants us to create a temporary let binding
         let line = line.unwrap();
