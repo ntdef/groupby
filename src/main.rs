@@ -4,14 +4,7 @@ use std::fs;
 use std::io::{BufReader,BufRead,Write,Read};
 use std::process::{Command, Stdio};
 
-/// # Examples
-/// ```
-/// use::nth_field;
-///
-/// assert_eq!(nth_field("one, two", 0), "one");
-///
-/// ```
-pub fn nth_field(s : &str, separator : &str, n : usize) -> String {
+fn nth_field(s : &str, separator : &str, n : usize) -> String {
     s.split(separator).nth(n).unwrap().to_owned()
 }
 
@@ -77,7 +70,7 @@ mod test {
 
     #[test]
     fn it_works() {
-        assert_eq!(nth_field("Cool, beans, yo", ",", 0), "Cool");
+        // TODO: Fill this out
     }
 
 }
