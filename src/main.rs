@@ -35,10 +35,6 @@ fn main() {
     let input = env::args().nth(1).unwrap_or(String::from("-"));
     let keycol = 4;
     let separator = ",";
-
-    // TODO: Fix issue with weird inner group line numberings
-    // I'm guessing it's something related to where I introduce
-    // newlines into the buffer.
     let cmd = "bash -c 'cat -n '";
 
     let rdr: Box<io::BufRead> = match input.as_ref() {
@@ -57,11 +53,11 @@ fn main() {
                 let line = el.ok().unwrap();
                 let cur = nth_field(&line, separator, keycol);
                 if cur == prev || prev.is_empty() {
-                    buf.push('\n'); buf.push_str(&line);
+                    buf.push_str(&line); buf.push('\n');
                 } else {
                     exec_with_buffer(cmd, &mut buf);
                     buf.clear();
-                    buf.push('\n'); buf.push_str(&line);
+                    buf.push_str(&line); buf.push('\n');
                 }
                 prev = cur
             },
