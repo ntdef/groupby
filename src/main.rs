@@ -33,21 +33,22 @@ fn exec_with_buffer(cmd : &str, buf : &mut String) {
 
 fn main() {
     let input = env::args().nth(1).unwrap_or(String::from("-"));
-    // let dict : HashMap<String, Vec<String>> = HashMap::new();
     let keycol = 4;
     let separator = ",";
+
+    // TODO: Fix issue with weird inner group line numberings
+    // I'm guessing it's something related to where I introduce
+    // newlines into the buffer.
+    let cmd = "bash -c 'cat -n '";
 
     let rdr: Box<io::BufRead> = match input.as_ref() {
         "-" => Box::new(BufReader::new(io::stdin())),
         _   => Box::new(BufReader::new(fs::File::open(input).unwrap()))
     };
+
     let mut prev = String::new();
     let mut buf  = String::new();
     let mut itr  = rdr.lines();
-    // TODO: Fix issue with weird inner group line numberings
-    // I'm guessing it's something related to where I introduce
-    // newlines into the buffer.
-    let cmd = "bash -c 'cat -n '";
 
     loop {
         let el = itr.next();
