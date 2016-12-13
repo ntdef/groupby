@@ -5,3 +5,4 @@ authors = ["ntdef <me@ntdef.com>"]
 
 [dependencies]
 clap = "2"
+threadpool = "1.3"
