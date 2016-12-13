@@ -6,6 +6,8 @@ extern crate clap;
 use clap::{App,Arg};
 
 mod ranges;
+mod process;
+use process::Process;
 use ranges::Range;
 
 fn linekey(s : &str, separator : &str, indices : &[Range]) -> String {
@@ -32,7 +34,7 @@ fn linekey(s : &str, separator : &str, indices : &[Range]) -> String {
 
 fn exec_with_buffer(cmd : &str, buf : &mut String) {
     let mut bufout = String::new();
-    let cmd = Command::new("sh")
+    let mut cmd = Command::new("sh")
         .arg("-c")
         .arg(cmd)
         .stdin(Stdio::piped())
@@ -40,9 +42,10 @@ fn exec_with_buffer(cmd : &str, buf : &mut String) {
         .spawn()
         .unwrap();
     // Write to stdin
-    cmd.stdin.unwrap().write_all(buf.as_bytes()).ok();
+    cmd.stdin.as_mut().unwrap().write_all(buf.as_bytes()).ok();
     // Read from stdout, writing to buffer
-    cmd.stdout.unwrap().read_to_string(&mut bufout).ok();
+    cmd.wait();
+    cmd.stdout.as_mut().unwrap().read_to_string(&mut bufout).ok();
     print!("{}", bufout);
 }
 
@@ -80,7 +83,6 @@ fn main() {
     let separator = args.value_of("delimiter").unwrap_or(",");
     let cmd       = args.value_of("command").expect("ACH");
     let key_range = Range::from_list(key).unwrap();
-    // let cmd = "bash -c 'cat -n '";
 
     let rdr: Box<io::BufRead> = match input.as_ref() {
         "-" => Box::new(BufReader::new(io::stdin())),
@@ -91,6 +93,8 @@ fn main() {
     let mut buf  = String::new();
     let mut itr  = rdr.lines();
 
+    let mut process = Process::new(cmd);
+
     loop {
         let el = itr.next();
         match el {
@@ -100,17 +104,21 @@ fn main() {
                 if cur == prev || prev.is_empty() {
                     buf.push_str(&line); buf.push('\n');
                 } else {
-                    exec_with_buffer(cmd, &mut buf);
+                    // exec_with_buffer(cmd, &mut buf);
+                    process.push(buf.clone());
                     buf.clear();
                     buf.push_str(&line); buf.push('\n');
                 }
                 prev = cur
             },
             None => {
-                exec_with_buffer(cmd, &mut buf);
+                // exec_with_buffer(cmd, &mut buf);
+                process.push(buf.clone());
                 buf.clear();
                 break
             },
         }
+        // for response in process.responses() {println!("{}", response);}
     }
+    // process.join();
 }
