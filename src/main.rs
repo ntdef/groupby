@@ -1,7 +1,6 @@
 use std::io;
 use std::fs;
-use std::io::{BufReader,BufRead,Write,Read};
-use std::process::{Command, Stdio};
+use std::io::{BufReader,BufRead};
 
 #[macro_use]
 extern crate clap;
@@ -110,7 +109,7 @@ fn main() {
             }
         }
     }
-    for i in 0..work_count {
+    for _ in 0..work_count {
         let l = process.rx.recv().unwrap();
         print!("{}", l.unwrap());
     }
