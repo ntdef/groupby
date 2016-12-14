@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 
 extern crate threadpool;
 use self::threadpool::ThreadPool;
+use std::thread;
 
 pub struct Process {
     tx: mpsc::Sender<Option<String>>,

@@ -1,10 +1,18 @@
 use std::io;
 use std::fs;
 use std::io::{BufReader,BufRead};
+use std::thread;
+
+use std::sync::mpsc;
+use std::process::{Command, Stdio};
+use std::io::{Read, Write};
 
 #[macro_use]
 extern crate clap;
 use clap::{App,Arg};
+
+extern crate itertools;
+use itertools::Itertools;
 
 mod ranges;
 mod process;
@@ -81,36 +89,50 @@ fn main() {
 
     let mut prev    = String::new();
     let mut buf     = String::new();
-    let mut itr     = rdr.lines();
-    let mut process = Process::new(cmd, poolsize);
-    let mut work_count : usize = 0;
-
-    loop {
-        let el = itr.next();
-        match el {
-            Some(el) => {
-                let line = el.ok().unwrap();
-                let cur = linekey(&line, separator, &key_range);
-                if cur == prev || prev.is_empty() {
-                    buf.push_str(&line); buf.push('\n');
-                } else {
-                    work_count+=1;
-                    process.push(buf.clone());
-                    buf.clear();
-                    buf.push_str(&line); buf.push('\n');
-                }
-                prev = cur
-            },
-            None => {
-                work_count+=1;
-                process.push(buf.clone());
-                buf.clear();
-                break
-            }
-        }
-    }
-    for _ in 0..work_count {
-        let l = process.rx.recv().unwrap();
-        print!("{}", l.unwrap());
+    let process = Process::new(cmd, poolsize);
+    let lines_reader = rdr.lines();
+    let itr = &lines_reader.group_by(|el| {linekey(el.as_ref().unwrap(), separator, &key_range)});
+    let threads : Vec<_> = itr.into_iter().map(|(key, mut group)| {
+        let el = group.map(|x| x.unwrap()).intersperse("\n".to_owned()).collect::<Vec<_>>().concat();
+        thread::spawn(move || {
+            let mut process =
+                Command::new("sh")
+                .arg("-c")
+                .arg("wc -l")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            process.stdin.as_mut()
+                .expect("unwrapping stdin did not work")
+                .write_all(el.as_bytes()).ok();
+            let _ = process.wait();
+            let mut bufout = String::new();
+            process.stdout.as_mut().unwrap().read_to_string(&mut bufout).ok();
+            print!("{}", bufout);
+        })
+    }).collect();
+    for t in threads {
+        let _ = t.join();
     }
 }
+
+// SEE: http://stackoverflow.com/questions/28599334/how-do-i-run-parallel-threads-of-computation-on-a-partitioned-array
+//
+// fn main() {
+//     let numbers = random_vec(10);
+//     let num_tasks_per_thread = numbers.len() / NTHREADS;
+
+//     // The `collect` is important to eagerly start the threads!
+//     let threads: Vec<_> = numbers.chunks(num_tasks_per_thread).map(|chunk| {
+//         thread::scoped(move || {
+//             chunk.iter().cloned().sum()
+//         })
+//     }).collect();
+
+//     let thread_sum: i32 = threads.into_iter().map(|t| t.join()).sum();
+//     let no_thread_sum: i32 = numbers.iter().cloned().sum();
+
+//     println!("global sum via threads    : {}", thread_sum);
+//     println!("global sum single-threaded: {}", no_thread_sum);
+// }
