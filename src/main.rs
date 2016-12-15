@@ -1,7 +1,6 @@
 use std::io;
 use std::fs;
-use std::io::{BufReader,BufRead,Write,Read};
-use std::process::{Command, Stdio};
+use std::io::{BufReader, BufRead};
 
 #[macro_use]
 extern crate clap;
@@ -10,6 +9,7 @@ use clap::{App,Arg};
 mod ranges;
 mod process;
 use process::Process;
+use process::Group;
 use ranges::Range;
 
 fn linekey(s : &str, separator : &str, indices : &[Range]) -> String {
@@ -84,7 +84,6 @@ fn main() {
     let mut buf     = String::new();
     let mut itr     = rdr.lines();
     let mut process = Process::new(cmd, poolsize);
-    let mut work_count : usize = 0;
 
     loop {
         let el = itr.next();
@@ -95,23 +94,28 @@ fn main() {
                 if cur == prev || prev.is_empty() {
                     buf.push_str(&line); buf.push('\n');
                 } else {
-                    work_count+=1;
-                    process.push(buf.clone());
+                    process.push(Group::new(prev, buf.clone()));
                     buf.clear();
                     buf.push_str(&line); buf.push('\n');
                 }
                 prev = cur
             },
             None => {
-                work_count+=1;
-                process.push(buf.clone());
+                // TODO: Check if buf is empty first
+                process.push(Group::new(prev, buf.clone()));
                 buf.clear();
                 break
             }
         }
     }
-    for i in 0..work_count {
-        let l = process.rx.recv().unwrap();
-        print!("{}", l.unwrap());
+    for p in process.packets() {
+        // TODO Print key on each line of output
+        print!("{}{}{}", p.key, separator, p.data.unwrap());
     }
+
+    // Sorted Output Version
+    // =====================
+    // let mut results : Vec<GroupProcResult> = process.packets().collect();
+    // results.sort_by_key(|a| a.idx);
+    // for r in results {print!("{}", r.data.unwrap());}
 }

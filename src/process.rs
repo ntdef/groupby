@@ -1,24 +1,34 @@
-use std;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
-use std::thread;
-use std::thread::JoinHandle;
-use std::io::BufReader;
-use std::io::BufRead;
-use std::io::Write;
-use std::io::Read;
+use std::io::{Read, Write};
 
 extern crate threadpool;
 
 use self::threadpool::ThreadPool;
 
+pub struct Group {
+    key: String,
+    data: String,
+}
+
+impl Group {
+    pub fn new(key: String, data: String) -> Group {
+        Group {key: key, data: data}
+    }
+}
+
+pub struct GroupProcResult {
+    pub idx: usize,
+    pub key: String,
+    pub data: Option<String>,
+}
+
 pub struct Process {
-    // process: std::process::Child,
-    tx: mpsc::Sender<Option<String>>,
-    pub rx: mpsc::Receiver<Option<String>>,
+    tx: mpsc::Sender<GroupProcResult>,
+    pub rx: mpsc::Receiver<GroupProcResult>,
     cmd: String,
-    children: Vec<JoinHandle<()>>,
     pool: ThreadPool,
+    counter: usize,
 }
 
 impl Process {
@@ -28,14 +38,28 @@ impl Process {
             tx: tx,
             rx: rx,
             cmd: cmd.to_owned(),
-            children: vec![],
             pool: ThreadPool::new(pool_size),
+            counter: 0,
         }
     }
 
-    pub fn push(&mut self, buf: String) {
+    pub fn increment(&mut self) {
+        self.counter += 1;
+    }
+
+    pub fn decrement(&mut self) {
+        self.counter -= 1;
+    }
+
+    pub fn push(&mut self, grp: Group) {
+        let buf = grp.data;
+        let key = grp.key;
         let tx  = self.tx.clone();
         let cmd = self.cmd.clone();
+        // Increment the counter so we know how many results we
+        // have to fetch from the channel
+        self.increment();
+        let idx = self.counter;
         self.pool.execute(move || {
             let mut process =
                 Command::new("sh")
@@ -50,17 +74,19 @@ impl Process {
                 .write_all(&buf.as_bytes()).ok();
             let _ = process.wait();
             let mut bufout = String::new();
-            process.stdout.as_mut().unwrap().read_to_string(&mut bufout);
-            tx.send(Some(bufout)).expect("sending to channel failed");
-            // let reader = BufReader::new(process.stdout.as_mut().unwrap());
-            // for line in reader.lines() {
-            //     let line = line.unwrap();
-            //     // println!("{}", line.clone());
-            //     tx.send(Some(line)).expect("sending to channel failed");
-            // }
+            let _ = process.stdout.as_mut().unwrap().read_to_string(&mut bufout);
+            let proc_result = GroupProcResult {
+                idx: idx,
+                key: key,
+                data: Some(bufout)
+            };
+            tx.send(proc_result).expect("sending to channel failed");
         });
     }
 
+    pub fn packets(&mut self) -> ProcessIntoIterator {
+        ProcessIntoIterator {subprocess: self}
+    }
 }
 
 pub struct ProcessIntoIterator<'a> {
@@ -68,11 +94,15 @@ pub struct ProcessIntoIterator<'a> {
 }
 
 impl <'a>Iterator for ProcessIntoIterator<'a> {
-    type Item = String;
-    fn next(&mut self) -> Option<String> {
-        let data = self.subprocess.rx.try_recv();
-        if data.is_ok() {
-            data.unwrap()
+    type Item = GroupProcResult;
+    // fn next(&mut self) -> Option<String> {
+    fn next(&mut self) -> Option<GroupProcResult> {
+        // TODO Investigate why the try_recv! version does not work.
+        let counter = self.subprocess.counter;
+        if counter > 0 {
+            let result = self.subprocess.rx.recv().unwrap();
+            self.subprocess.decrement();
+            Some(result)
         }
         else {
             None
