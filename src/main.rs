@@ -1,6 +1,6 @@
 use std::io;
 use std::fs;
-use std::io::{BufReader, BufRead};
+use std::io::{BufReader, BufRead, Write};
 
 #[macro_use]
 extern crate clap;
@@ -44,6 +44,10 @@ fn main() {
              .long("pool-size")
              .help("The number of workers to allow.")
              .takes_value(true))
+        .arg(Arg::with_name("skiplines")
+             .long("skip")
+             .help("Number of lines to skip.")
+             .takes_value(true))
         .arg(Arg::with_name("key")
              .short("k")
              .long("key")
@@ -57,21 +61,22 @@ fn main() {
              .help("The field separator.")
              .takes_value(true))
         .arg(Arg::with_name("command")
-             .short("e")
              .value_name("COMMAND")
              .help("The command to run on each group")
              .required(true)
-             .takes_value(true))
+             .takes_value(true)
+             .index(1))
         .arg(Arg::with_name("input")
              .help("The input file to pass")
              .value_name("INPUT")
-             .index(1))
+             .index(2))
         .get_matches();
 
     let key       = args.value_of("key").unwrap_or("1");
     let input     = args.value_of("input").unwrap_or("-");
     let separator = args.value_of("delimiter").unwrap_or(",");
     let cmd       = args.value_of("command").expect("ACH");
+    let skip_n    = value_t!(args, "skiplines", usize).unwrap_or(0);
     let poolsize : usize = value_t!(args, "poolsize", usize).unwrap_or(8);
     let key_range = Range::from_list(key).unwrap();
 
@@ -84,6 +89,9 @@ fn main() {
     let mut buf     = String::new();
     let mut itr     = rdr.lines();
     let mut process = Process::new(cmd, poolsize);
+
+    // Skip initial N lines
+    for _ in 0..skip_n { let _ = itr.next(); }
 
     loop {
         let el = itr.next();
@@ -110,9 +118,13 @@ fn main() {
     }
     for p in process.packets() {
         // TODO Print key on each line of output
-        print!("{}{}{}", p.key, separator, p.data.unwrap());
+        for line in p.data.unwrap().lines() {
+            if let Err(_) = std::io::stdout()
+                .write_fmt(format_args!("{}{}{}\n", p.key, separator, line)) {
+                std::process::exit(0);
+            };
+        }
     }
-
     // Sorted Output Version
     // =====================
     // let mut results : Vec<GroupProcResult> = process.packets().collect();
