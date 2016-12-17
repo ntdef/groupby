@@ -4,7 +4,6 @@ use std::io::{Read, Write};
 
 extern crate threadpool;
 use self::threadpool::ThreadPool;
-use std::thread;
 
 pub struct Group {
     key: String,
