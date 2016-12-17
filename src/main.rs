@@ -1,4 +1,3 @@
-use std::io;
 use std::fs;
 use std::io::{BufReader, BufRead, Write};
 
@@ -6,10 +5,10 @@ use std::io::{BufReader, BufRead, Write};
 extern crate clap;
 use clap::{App,Arg};
 
-mod ranges;
 mod process;
-use process::Process;
-use process::Group;
+use process::{Process, Group};
+
+mod ranges;
 use ranges::Range;
 
 fn linekey(s : &str, separator : &str, indices : &[Range]) -> String {
@@ -80,8 +79,8 @@ fn main() {
     let poolsize : usize = value_t!(args, "poolsize", usize).unwrap_or(8);
     let key_range = Range::from_list(key).unwrap();
 
-    let rdr: Box<io::BufRead> = match input.as_ref() {
-        "-" => Box::new(BufReader::new(io::stdin())),
+    let rdr: Box<BufRead> = match input.as_ref() {
+        "-" => Box::new(BufReader::new(std::io::stdin())),
         _   => Box::new(BufReader::new(fs::File::open(input).unwrap()))
     };
 
@@ -119,6 +118,7 @@ fn main() {
     for p in process.packets() {
         // TODO Print key on each line of output
         for line in p.data.unwrap().lines() {
+            // Unpack printing to stdout so that we catch Broken Pipe signals from the OS
             if let Err(_) = std::io::stdout()
                 .write_fmt(format_args!("{}{}{}\n", p.key, separator, line)) {
                 std::process::exit(0);

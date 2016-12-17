@@ -3,7 +3,6 @@ use std::sync::mpsc;
 use std::io::{Read, Write};
 
 extern crate threadpool;
-
 use self::threadpool::ThreadPool;
 
 pub struct Group {
@@ -25,7 +24,7 @@ pub struct GroupProcResult {
 
 pub struct Process {
     tx: mpsc::Sender<GroupProcResult>,
-    pub rx: mpsc::Receiver<GroupProcResult>,
+    rx: mpsc::Receiver<GroupProcResult>,
     cmd: String,
     pool: ThreadPool,
     counter: usize,
@@ -43,19 +42,16 @@ impl Process {
         }
     }
 
-    pub fn increment(&mut self) {
-        self.counter += 1;
-    }
+    fn increment(&mut self) { self.counter += 1 }
 
-    pub fn decrement(&mut self) {
-        self.counter -= 1;
-    }
+    pub fn decrement(&mut self) { self.counter -= 1 }
 
     pub fn push(&mut self, grp: Group) {
         let buf = grp.data;
         let key = grp.key;
         let tx  = self.tx.clone();
         let cmd = self.cmd.clone();
+
         // Increment the counter so we know how many results we
         // have to fetch from the channel
         self.increment();
@@ -75,11 +71,7 @@ impl Process {
             let _ = process.wait();
             let mut bufout = String::new();
             let _ = process.stdout.as_mut().unwrap().read_to_string(&mut bufout);
-            let proc_result = GroupProcResult {
-                idx: idx,
-                key: key,
-                data: Some(bufout)
-            };
+            let proc_result = GroupProcResult {idx: idx, key: key, data: Some(bufout)};
             tx.send(proc_result).expect("sending to channel failed");
         });
     }
@@ -95,7 +87,7 @@ pub struct ProcessIntoIterator<'a> {
 
 impl <'a>Iterator for ProcessIntoIterator<'a> {
     type Item = GroupProcResult;
-    // fn next(&mut self) -> Option<String> {
+
     fn next(&mut self) -> Option<GroupProcResult> {
         // TODO Investigate why the try_recv! version does not work.
         let counter = self.subprocess.counter;
